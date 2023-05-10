@@ -1,8 +1,10 @@
 package com.malves.minhasfinancas.service.impl;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import org.junit.jupiter.params.shadow.com.univocity.parsers.annotations.Trim;
 import org.springframework.data.domain.Example;
@@ -14,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.malves.minhasfinancas.exception.RegraNegocioException;
 import com.malves.minhasfinancas.model.entity.Lancamento;
 import com.malves.minhasfinancas.model.enums.StatusLancamento;
+import com.malves.minhasfinancas.model.enums.TipoLancamento;
 import com.malves.minhasfinancas.model.repository.LancamentoRepository;
 import com.malves.minhasfinancas.service.LancamentoService;
 
@@ -31,6 +34,8 @@ public class LancamentoServiceImpl implements LancamentoService {
 	@Transactional
 	public Lancamento salvar(Lancamento lancamento) {
 		validar(lancamento);
+		lancamento.setStatus(StatusLancamento.PENDENTE); //Status inicial é o Pendente (fixo)
+		lancamento.setDataCadastro(LocalDate.now());
 		return repository.save(lancamento);
 	}
 
@@ -39,7 +44,6 @@ public class LancamentoServiceImpl implements LancamentoService {
 	public Lancamento atualizar(Lancamento lancamento) {
 		Objects.requireNonNull(lancamento.getId()); //Garantir que o lancamento ja tenha sido salvo e seja uma atualização 
 		validar(lancamento);
-		lancamento.setStatus(StatusLancamento.PENDENTE); //Status inicial é o Pendente (fixo)
 		return repository.save(lancamento);
 	}
 
@@ -62,6 +66,7 @@ public class LancamentoServiceImpl implements LancamentoService {
 				.withStringMatcher(StringMatcher.CONTAINING)); //Como se fosse um like, filtrando por um pedaço do lancamento
 				
 		return repository.findAll(example);
+		
 	}
 
 	@Override
@@ -98,6 +103,29 @@ public class LancamentoServiceImpl implements LancamentoService {
 		if(lancamento.getTipo() == null) {
 			throw new RegraNegocioException("Informe um tipo de Lançamento.");
 		}
+	}
+
+	@Override
+	public Optional<Lancamento> obterPorId(Long id) {
+		return repository.findById(id);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public BigDecimal obterSaldoPorUsuario(Long id) {
+		BigDecimal receitas = repository.obterSaldoPorTipoLacamentoEUsuario(id, TipoLancamento.RECEITA); 
+		//TipoLancamento.RECEITA.name() - Transforma o enu em String
+		BigDecimal despesas = repository.obterSaldoPorTipoLacamentoEUsuario(id, TipoLancamento.DESPESA); 
+
+		if(receitas == null) {
+			receitas = BigDecimal.ZERO;
+		}
+		
+		if(despesas == null) {
+			despesas = BigDecimal.ZERO;
+		}
+		
+		return receitas.subtract(despesas); //subtract SUBTRAÇÃO
 	}
 
 }
